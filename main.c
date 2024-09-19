@@ -12,8 +12,8 @@
 
 typedef struct row {
     __uint32_t id;
-    char username[COLUMN_USERNAME_SIZE];
-    char email[COLUMN_EMAIL_SIZE];
+    char username[COLUMN_USERNAME_SIZE + 1];
+    char email[COLUMN_EMAIL_SIZE + 1];
 } Row;
 
 typedef struct table {
@@ -50,8 +50,22 @@ typedef struct {
 typedef enum {
     PREPARE_SUCCESS,
     PREPARE_UNRECOGNIZED,
-    PREPARE_SYNTAX_ERROR
+    PREPARE_SYNTAX_ERROR,
+    PREPARE_NEGATIVE_ID,
+    PREPARE_STRING_TOO_LONG
 } PrepareResult;
+
+const __uint32_t ID_SIZE = size_of_attribute(Row, id);
+const __uint32_t USERNAME_SIZE = size_of_attribute(Row, username);
+const __uint32_t EMAIL_SIZE = size_of_attribute(Row, email);
+const __uint32_t ID_OFFSET = 0;
+const __uint32_t USERNAME_OFFSET = ID_SIZE + ID_OFFSET;
+const __uint32_t EMAIL_OFFSET = USERNAME_OFFSET + USERNAME_SIZE;
+const __uint32_t ROW_SIZE = ID_SIZE + USERNAME_SIZE + EMAIL_SIZE;
+
+const __uint32_t PAGE_SIZE = 4096;
+const __uint32_t ROWS_PER_PAGE = PAGE_SIZE / ROW_SIZE;
+const __uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 
 void print_prompt() {
     printf("db > ");
@@ -93,14 +107,35 @@ MetaResult do_meta_command(IBuffer *b) {
     }
 }
 
+PrepareResult prepare_insert(IBuffer *b, Statement *s) {
+    char *keyword = strtok(b->buffer, " ");
+    char *id = strtok(NULL, " ");
+    char *username = strtok(NULL, " ");
+    char *email = strtok(NULL, " ");
+
+    if (id == NULL || username == NULL || email == NULL) {
+        return PREPARE_SYNTAX_ERROR;
+    }
+
+    int id_num = atoi(id);
+    if (id_num < 0) {
+        return PREPARE_NEGATIVE_ID;
+    }
+
+    if (strlen(username) >= USERNAME_SIZE || strlen(email) >= EMAIL_SIZE) {
+        return PREPARE_STRING_TOO_LONG;
+    }
+
+    s->insert_row.id = id_num;
+    strcpy(s->insert_row.email, email);
+    strcpy(s->insert_row.username, username);
+    s->type = STATEMENT_INSERT;
+    return PREPARE_SUCCESS;
+}
+
 PrepareResult prepare_statement(IBuffer *b, Statement *s) {
     if (!strncmp(b->buffer, "insert", 6)) {
-        s->type = STATEMENT_INSERT;
-        int args_assigned = sscanf(b->buffer, "insert %d %s %s", &(s->insert_row.id), &(s->insert_row.username), &(s->insert_row.email));
-        if (args_assigned < 3) {
-            return PREPARE_SYNTAX_ERROR;
-        }
-        return PREPARE_SUCCESS;
+        return prepare_insert(b, s);
     }
 
     if (!strcmp(b->buffer, "select")) {
@@ -114,18 +149,6 @@ PrepareResult prepare_statement(IBuffer *b, Statement *s) {
 void print_row(Row *r) {
     printf("(%d, %s, %s)\n", r->id, r->username, r->email);
 }
-
-const __uint32_t ID_SIZE = size_of_attribute(Row, id);
-const __uint32_t USERNAME_SIZE = size_of_attribute(Row, username);
-const __uint32_t EMAIL_SIZE = size_of_attribute(Row, email);
-const __uint32_t ID_OFFSET = 0;
-const __uint32_t USERNAME_OFFSET = ID_SIZE + ID_OFFSET;
-const __uint32_t EMAIL_OFFSET = USERNAME_OFFSET + USERNAME_SIZE;
-const __uint32_t ROW_SIZE = ID_SIZE + USERNAME_SIZE + EMAIL_SIZE;
-
-const __uint32_t PAGE_SIZE = 4096;
-const __uint32_t ROWS_PER_PAGE = PAGE_SIZE / ROW_SIZE;
-const __uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 
 void *get_row_slot(Table *t, __uint32_t row_num) {
     __uint32_t page_num = row_num / ROWS_PER_PAGE;
@@ -154,7 +177,7 @@ void deserialize_row(Row *d, void* s) {
 
 
 ExecuteResult execute_insert(Statement *s, Table *t) {
-    if (t->num_rows >= TABLE_MAX_ROWS) {
+    if (t->num_rows + 1 >= TABLE_MAX_ROWS) {
         return EXECUTE_TABLE_FULL;
     }
     void *slot = get_row_slot(t, t->num_rows);
@@ -226,6 +249,12 @@ int main(int ac, char **av) {
                 continue;
             case(PREPARE_SYNTAX_ERROR):
                 printf("Syntax Error. Could not parse statement.\n");
+                continue;
+            case(PREPARE_STRING_TOO_LONG):
+                printf("Given string is too long.\n");
+                continue;
+            case(PREPARE_NEGATIVE_ID):
+                printf("Error: ID must be positive.\n");
                 continue;
         }
 
