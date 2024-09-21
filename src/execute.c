@@ -47,11 +47,11 @@ PrepareResult prepare_statement(IBuffer *b, Statement *s) {
 }
 
 ExecuteResult execute_insert(Statement *s, Table *t) {
+    Cursor *c = table_end(t);
     if (t->num_rows + 1 >= TABLE_MAX_ROWS) {
         return EXECUTE_TABLE_FULL;
     }
-    void *slot = get_row_slot(t, t->num_rows);
-    serialize_row(&(s->insert_row), slot);
+    serialize_row(&(s->insert_row), get_cursor_value(c));
     t->num_rows++;
 
     return EXECUTE_SUCCESS;
@@ -59,12 +59,14 @@ ExecuteResult execute_insert(Statement *s, Table *t) {
 
 ExecuteResult execute_select(Statement *s, Table *t) {
     Row row;
-    // temp
+    Cursor *c = table_start(t);
     s->type = STATEMENT_SELECT;
-    for (__uint32_t i = 0; i < t->num_rows; i++) {
-        deserialize_row(&row, get_row_slot(t, i));
+    while (!c->is_end_of_table) {
+        deserialize_row(&row, get_cursor_value(c));
         print_row(&row);
+        cursor_advance(c);
     }
+    free(c);
 
     return EXECUTE_SUCCESS;
 }

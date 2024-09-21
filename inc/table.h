@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #define size_of_attribute(Struct, Attribute) sizeof(((Struct*)0)->Attribute)
 
@@ -39,6 +40,12 @@ typedef struct table {
     Pager *pager;
 } Table;
 
+typedef struct cursor {
+    Table *table;
+    __uint32_t row_num;
+    bool is_end_of_table;
+} Cursor;
+
 extern const __uint32_t ID_SIZE;
 extern const __uint32_t USERNAME_SIZE;
 extern const __uint32_t EMAIL_SIZE;
@@ -58,6 +65,22 @@ extern const __uint32_t TABLE_MAX_ROWS;
 void print_row(Row *r);
 
 /**
+ * @brief Creates a cursor pointing to the start of the table and returns it
+ * 
+ * @param t (Table *)
+ * @return Cursor* 
+ */
+Cursor *table_start(Table *t);
+
+/**
+ * @brief Creates a cursor pointing to the end of the table and returns it
+ * 
+ * @param t (Table *)
+ * @return Cursor* 
+ */
+Cursor *table_end(Table *t);
+
+/**
  * @brief Get the page number page_num
  * 
  * @param p (Pager *)
@@ -67,13 +90,19 @@ void print_row(Row *r);
 void *get_page(Pager *p, __uint32_t page_num);
 
 /**
- * @brief Returns the adress of the requested tow in the table
+ * @brief Returns the adress pointed to by a cursor
  * 
- * @param t (Table*)
- * @param row_num (__uint32_t) Row number in the table
+ * @param c (Cursor *)
  * @return (void*)
  */
-void *get_row_slot(Table *t, __uint32_t row_num);
+void *get_cursor_value(Cursor *c);
+
+/**
+ * @brief Advances the gicen cursor to the next table row
+ * 
+ * @param c 
+ */
+void cursor_advance(Cursor *c);
 
 /**
  * @brief Serializes a Row in a given destination

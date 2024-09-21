@@ -24,6 +24,22 @@ void print_row(Row *r) {
     printf("(%d, %s, %s)\n", r->id, r->username, r->email);
 }
 
+Cursor *table_start(Table *t) {
+    Cursor *c = (Cursor *)malloc(sizeof(Cursor));
+    c->table = t;
+    c->row_num = 0;
+    c->is_end_of_table = t->num_rows == 0;
+    return c;
+}
+
+Cursor *table_end(Table *t) {
+    Cursor *c = (Cursor *)malloc(sizeof(Cursor));
+    c->table = t;
+    c->row_num = t->num_rows;
+    c->is_end_of_table = true;
+    return c;
+}
+
 void *get_page(Pager *p, __uint32_t page_num) {
     if (page_num > TABLE_MAX_PAGES) {
         printf("Tried to fetch page number out of bounds. %d > %d.\n", page_num, TABLE_MAX_PAGES);
@@ -52,14 +68,21 @@ void *get_page(Pager *p, __uint32_t page_num) {
     return p->pages[page_num];
 }
 
-void *get_row_slot(Table *t, __uint32_t row_num) {
-    __uint32_t page_num = row_num / ROWS_PER_PAGE;
-    void *page = get_page(t->pager, page_num);
+void *get_cursor_value(Cursor *c) {
+    __uint32_t page_num = c->row_num / ROWS_PER_PAGE;
+    void *page = get_page(c->table->pager, page_num);
 
-    __uint32_t row_offset = row_num % ROWS_PER_PAGE;
+    __uint32_t row_offset = c->row_num % ROWS_PER_PAGE;
     __uint32_t byte_offset = row_offset * ROW_SIZE;
 
     return page + byte_offset;
+}
+
+void cursor_advance(Cursor *c) {
+    c->row_num += 1;
+    if (c->row_num >= c->table->num_rows) {
+        c->is_end_of_table = true;
+    }
 }
 
 void serialize_row(Row *s, void *d) {
