@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <memory.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <errno.h>
 
 #define size_of_attribute(Struct, Attribute) sizeof(((Struct*)0)->Attribute)
 
@@ -24,9 +28,15 @@ typedef struct row {
     char email[COLUMN_EMAIL_SIZE + 1];
 } Row;
 
+typedef struct pager {
+    int fd;
+    __uint32_t file_length;
+    void *pages[TABLE_MAX_PAGES];
+} Pager;
+
 typedef struct table {
     __uint32_t num_rows;
-    void *pages[TABLE_MAX_PAGES];
+    Pager *pager;
 } Table;
 
 extern const __uint32_t ID_SIZE;
@@ -46,6 +56,15 @@ extern const __uint32_t TABLE_MAX_ROWS;
  * @param r Row *
  */
 void print_row(Row *r);
+
+/**
+ * @brief Get the page number page_num
+ * 
+ * @param p (Pager *)
+ * @param page_num (__uint_32_t)
+ * @return void* 
+ */
+void *get_page(Pager *p, __uint32_t page_num);
 
 /**
  * @brief Returns the adress of the requested tow in the table
@@ -73,20 +92,36 @@ void serialize_row(Row *s, void *d);
  */
 void deserialize_row(Row *d, void* s);
 
-
 /**
- * @brief Creates a new Table
+ * @brief Creates a pager from memory in file located at filename
  * 
- * @return (Table*) 
+ * @param filename 
+ * @return Pager* 
  */
-Table *new_table();
+Pager *pager_open(const char *filename);
+
+/**
+ * @brief Flushes the pager cache into memory.
+ * 
+ * @param p (Pager*)
+ * @param page_num (__uint_32_t)
+ */
+void pager_flush(Pager *p, __uint32_t page_num, __uint32_t size);
 
 
 /**
- * @brief Frees a Table
+ * @brief Opens a connection to the database
+ * 
+ * @param filename 
+ * @return Table* 
+ */
+Table *db_open(const char *filename);
+
+/**
+ * @brief Close db connection and flushes cache if necessary
  * 
  * @param t (Table*)
  */
-void free_table(Table *t);
+void db_close(Table* t);
 
 #endif /* !TABLE_H_ */

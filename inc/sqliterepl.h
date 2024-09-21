@@ -26,7 +26,7 @@ typedef enum {
  * @param b (IBuffer*)
  * @return MetaResult 
  */
-MetaResult do_meta_command(IBuffer *b);
+MetaResult do_meta_command(IBuffer *b, Table *t);
 
 
 

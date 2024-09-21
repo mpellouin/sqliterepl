@@ -7,8 +7,9 @@
 
 #include "sqliterepl.h"
 
-MetaResult do_meta_command(IBuffer *b) {
+MetaResult do_meta_command(IBuffer *b, Table *t) {
     if (!strcmp(b->buffer, ".exit")) {
+        db_close(t);
         close_input_buffer(b);
         exit(EXIT_SUCCESS);
     } else {
@@ -17,18 +18,19 @@ MetaResult do_meta_command(IBuffer *b) {
 }
 
 int main(int ac, char **av) {
-    if (ac != 1 && (strcmp(av[1], "--help") || strcmp(av[1], "-h"))) {
-        printf("Too many arguments provided.\n");
-        return EXIT_SUCCESS;
+    if (ac < 2) {
+        printf("A database file must be provided.\n");
+        return EXIT_FAILURE;
     }
+    char *db_filepath = av[1];
     IBuffer *b = new_input_buffer();
-    Table *t = new_table();
+    Table *t = db_open(db_filepath);
 
     while (true) {
         print_prompt();
         read_input(b);
         if (b->buffer[0] == '.') {
-            switch(do_meta_command(b)) {
+            switch(do_meta_command(b, t)) {
                 case META_SUCCESS:
                     continue;
                 case META_UNRECOGNIZED:

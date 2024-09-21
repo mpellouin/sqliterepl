@@ -1,7 +1,12 @@
 describe 'database' do
+
+  before do
+    system("rm -rf db")
+  end
+
   def run_script(commands)
     raw_output = nil
-    IO.popen("./sqliterepl", "r+") do |pipe|
+    IO.popen("./sqliterepl db", "r+") do |pipe|
       commands.each do |command|
         pipe.puts command
       end
@@ -81,6 +86,29 @@ describe 'database' do
     expect(result).to match_array([
       "db > Error: ID must be positive.",
       "db > Executed.",
+      "db > ",
+    ])
+  end
+
+  it 'keeps data after closing connection' do
+    result1 = run_script([
+      "insert 1 a a",
+      "select",
+      ".exit",
+    ])
+    expect(result1).to match_array([
+      "db > Executed.",
+      "db > (1, a, a)",
+      "Executed.",
+      "db > ",
+    ])
+    result2 = run_script([
+      "select",
+      ".exit",
+    ])
+    expect(result2).to match_array([
+      "db > (1, a, a)",
+      "Executed.",
       "db > ",
     ])
   end
